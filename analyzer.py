@@ -1,14 +1,14 @@
 """
 ブラックジャックのディーラー最終結果の確率分布と、
-プレイヤーの各手の行動 (stand / hit / double / split) ごとの配当の期待値を計算し、
+プレイヤーの各手札の行動 (stand / hit / double / split) ごとの配当の期待値を計算し、
 ベーシックストラテジーの表を求める。
 
 前提:
   - 無限デッキ (各ランクの出現確率は一定)
   - 52枚が同確率 → A,2..9 は各 1/13、10/J/Q/K をまとめた 10 は 4/13
-  - 手の状態は (合計値, ソフトかどうか) を持つ BaseHand で表す
+  - 手札の状態は (合計値, ソフトかどうか) を持つ BaseHand で表す
     ソフト = エースを 11 として数えている状態
-  - プレイヤーの手はナチュラル・ブラックジャックではないものとし、
+  - プレイヤーの手札はナチュラル・ブラックジャックではないものとし、
     ディーラーのブラックジャックにはプレイヤーの 21 でも負ける
   - ディーラーがアップカード A / 10 でブラックジャックを確認するか (ピーク) は
     DEALER_PEEKS_ON_ACE / DEALER_PEEKS_ON_TEN で設定する。
@@ -31,16 +31,16 @@ UPCARDS: typing.Final[tuple[int, ...]] = (2, 3, 4, 5, 6, 7, 8, 9, 10, 1)
 #  ブラックジャックのルール設定
 # **********************************************************
 HIT_SOFT_17: typing.Final[bool] = False
-"""ディーラーの手が 17S の場合に hit するかどうかのフラグ"""
+"""ディーラーの手札が 17S の場合に hit するかどうかのフラグ"""
 
 DOUBLE_AFTER_SPLITTING: typing.Final[bool] = False
 """Split 後に Double Down を許可するかどうかのフラグ"""
 
 SPLIT_ACES_ONE_CARD: typing.Final[bool] = True
-"""A を Split した場合、各手に配られる枚数を 1 枚だけに制限するかどうかのフラグ"""
+"""A を Split した場合、各手札に配られる枚数を 1 枚だけに制限するかどうかのフラグ"""
 
 MAX_SPLIT_HANDS: typing.Final[int] = 4
-"""Split (再 Split を含む) で分けられる手の最大数。2 にすると再 Split なし"""
+"""Split (再 Split を含む) で分けられる手札の最大数。2 にすると再 Split なし"""
 
 RESPLIT_ACES: typing.Final[bool] = False
 """A を Split した後、再び A が来た場合に再 Split を許可するかどうかのフラグ"""
@@ -190,7 +190,7 @@ def calc_ev(player: DistScore, dealer: DistScore) -> float:
 
 
 # **********************************************************
-#  ブラックジャックの手を表すクラス
+#  ブラックジャックの手札を表すクラス
 # **********************************************************
 #   BaseHand
 #    ├ HandBust
@@ -200,13 +200,13 @@ def calc_ev(player: DistScore, dealer: DistScore) -> float:
 #       └ HandSingle
 @dataclasses.dataclass(frozen=True)
 class BaseHand(abc.ABC):
-    """手の状態。イミュータブル (frozen) で、辞書のキーに使える。
+    """手札の状態。イミュータブル (frozen) で、辞書のキーに使える。
     frozen なので、サブクラスも frozen な dataclass にする必要がある。"""
 
     @property
     @abc.abstractmethod
     def score(self) -> int:
-        """手の合計値を返す。BUSTは-100、natural blackjackは+100。"""
+        """手札の合計値を返す。BUSTは-100、natural blackjackは+100。"""
         ...
 
     @abc.abstractmethod
@@ -216,7 +216,7 @@ class BaseHand(abc.ABC):
 
 @dataclasses.dataclass(frozen=True)
 class HandBust(BaseHand):
-    """バースト済みの手。"""
+    """バースト済みの手札。"""
 
     @property
     def score(self) -> int:
@@ -228,7 +228,7 @@ class HandBust(BaseHand):
 
 @dataclasses.dataclass(frozen=True)
 class HandBlackjack(BaseHand):
-    """ナチュラル・ブラックジャックの手。"""
+    """ナチュラル・ブラックジャックの手札。"""
 
     @property
     def score(self) -> int:
@@ -244,7 +244,7 @@ HAND_BJ: typing.Final[HandBlackjack] = HandBlackjack()
 
 @dataclasses.dataclass(frozen=True)
 class Hand(BaseHand, abc.ABC):
-    """一般的な手の状態 (ディーラー・プレイヤー共通)。"""
+    """一般的な手札の状態 (ディーラー・プレイヤー共通)。"""
 
     @property
     @abc.abstractmethod
@@ -268,7 +268,7 @@ class Hand(BaseHand, abc.ABC):
 
 @dataclasses.dataclass(frozen=True)
 class HandMulti(Hand):
-    """複数枚から構成される手の状態。"""
+    """複数枚から構成される手札の状態。"""
     _score: int = 0
     _soft: bool = False
 
@@ -343,7 +343,7 @@ class HandSingle(Hand):
 
 
 # **********************************************************
-#  ディーラーの手の結果分布を表すクラス
+#  ディーラーの手札の結果分布を表すクラス
 # **********************************************************
 class DealerDistribution:
     __slots__ = ("__card_probs", "__cache_score")
@@ -438,7 +438,7 @@ ACTION_NAMES: typing.Final[dict[str, str]] = {"S": "stand", "H": "hit", "DD": "d
 
 
 class PlayerHandTable:
-    """ディーラー分布を固定し、プレイヤーの各手の stand / hit-1 / hit-more の期待値を計算する。"""
+    """ディーラー分布を固定し、プレイヤーの各手札の stand / hit-1 / hit-more の期待値を計算する。"""
     __slots__ = ("__dealer_dist", "__cache_stand", "__cache_hitm", "__cache_hit1", "__card_probs")
 
     def __init__(self, dealer_dist: DistScore, card_probs: cabc.Mapping[int, float]) -> None:
@@ -450,7 +450,7 @@ class PlayerHandTable:
         return
 
     def stand(self, hand: BaseHand) -> float:
-        """今の手でスタンドした場合の期待値。"""
+        """今の手札でスタンドした場合の期待値。"""
         if hand in self.__cache_stand:
             return self.__cache_stand[hand]
 
@@ -472,7 +472,7 @@ class PlayerHandTable:
         return ev
 
     def best(self, hand: BaseHand) -> float:
-        """今の手から最適に行動した場合の期待値"""
+        """今の手札から最適に行動した場合の期待値"""
         ev = self.stand(hand)
         if isinstance(hand, Hand):
             ev = max(ev, self.hit_more(hand))
@@ -496,7 +496,7 @@ class PlayerHandTable:
         return 2.0 * self.hit1(hand)
 
     def after_split(self, card: int, card2: int) -> float:
-        """card でスプリットした手が 2 枚目 card2 を受け取った後、その手 1 つの期待値 (再スプリットしない場合)。
+        """card でスプリットした手札が 2 枚目 card2 を受け取った後、その手札 1 つの期待値 (再スプリットしない場合)。
         A+10 は普通の 21 として扱う (ブラックジャックにはならない)。"""
         hand: HandMulti = HandSingle(card).add_no_bj(card2)
         if card == 1 and SPLIT_ACES_ONE_CARD:
@@ -510,8 +510,8 @@ class PlayerHandTable:
 
     def split(self, card: int) -> float:
         """
-        card のペアをスプリットした場合の期待値 (分かれた全ての手の合計)。
-        2 枚目に同じ card が来た場合は、手の数が MAX_SPLIT_HANDS 未満なら再スプリットできる
+        card のペアをスプリットした場合の期待値 (分かれた全ての手札の合計)。
+        2 枚目に同じ card が来た場合は、手札の数が MAX_SPLIT_HANDS 未満なら再スプリットできる
         (A は RESPLIT_ACES のときのみ)。再スプリットするかどうかは期待値の高い方を選ぶ。
         """
         can_resplit: bool = (card != 1) or RESPLIT_ACES
@@ -527,25 +527,25 @@ class PlayerHandTable:
         cache: dict[tuple[int, int], float] = {}
 
         def remaining(waiting: int, hands: int) -> float:
-            """2 枚目を待っている手が waiting 個、手の総数が hands のとき、待っている手全体の期待値。"""
+            """2 枚目を待っている手札が waiting 個、手札の総数が hands のとき、待っている手札全体の期待値。"""
             if waiting == 0:
                 return 0.0
             key = (waiting, hands)
             if key in cache:
                 return cache[key]
 
-            # 待っている手の 1 つに 2 枚目を配る
+            # 待っている手札の 1 つに 2 枚目を配る
             ev_keep: float = ev_pair + remaining(waiting - 1, hands)  # ペアのまま行動
             ev: float = ev_other + (1.0 - p_pair) * remaining(waiting - 1, hands)
             if can_resplit and hands < MAX_SPLIT_HANDS:
-                # 再スプリットすると、待っている手が 1 つ増え、手の総数も 1 つ増える
+                # 再スプリットすると、待っている手札が 1 つ増え、手札の総数も 1 つ増える
                 ev += p_pair * max(ev_keep, remaining(waiting + 1, hands + 1))
             else:
                 ev += p_pair * ev_keep
             cache[key] = ev
             return ev
 
-        # 最初のスプリットで 2 手に分かれ、どちらも 2 枚目を待っている
+        # 最初のスプリットで 2 つの手札に分かれ、どちらも 2 枚目を待っている
         return remaining(2, 2)
 
     def best_action(self, hand: HandMulti, can_double: bool = True,
